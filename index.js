@@ -12,7 +12,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 const cors = require('cors');
-app.use(cors({ origin: '*' }));
+app.use(cors());
 
 const imageSchema = new mongoose.Schema({
   filename: String,
