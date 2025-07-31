@@ -174,6 +174,10 @@ const swaggerOptions = {
       {
         url: `http://localhost:${process.env.PORT || 10000}`,
       },
+       {
+        url: 'https://backend-2y5w.onrender.com/',
+        description: 'Production',
+      },
     ],
   },
   apis: ['index.js'],
