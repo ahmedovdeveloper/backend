@@ -42,7 +42,7 @@ const Product = mongoose.model('Product', productSchema);
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+    const conn = await mongoose.connect("mongodb+srv://Abdulloh:634571@cluster0.76u0c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0", {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
