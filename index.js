@@ -12,7 +12,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 const cors = require('cors');
-app.use(cors());
+app.use(cors(["*"]));
 
 const imageSchema = new mongoose.Schema({
   filename: String,
@@ -172,7 +172,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: `http://localhost:${process.env.PORT || 3001}`,
+        url: `http://localhost:${process.env.PORT || 1000}`,
       },
     ],
   },
