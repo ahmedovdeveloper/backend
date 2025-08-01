@@ -42,10 +42,7 @@ const Product = mongoose.model('Product', productSchema);
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect("mongodb+srv://Abdulloh:634571@cluster0.76u0c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0", {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    const conn = await mongoose.connect("mongodb+srv://Abdulloh:634571@cluster0.76u0c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0");
     console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (err) {
     console.error(err);
@@ -69,7 +66,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB limit
   fileFilter: (req, file, cb) => {
     const filetypes = /jpeg|jpg|png/;
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
@@ -81,6 +78,19 @@ const upload = multer({
   },
 });
 
+// Global error handling middleware for Multer
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      console.log(`File too large: ${err.field} - Size: ${err.size} bytes, Limit: 20 MB`);
+      return res.status(400).json({ error: 'File too large. Maximum size is 20 MB.' });
+    }
+  } else if (err) {
+    console.error('Unexpected error:', err.message);
+    return res.status(500).json({ error: 'An unexpected error occurred.' });
+  }
+  next(err);
+});
 
 // Swagger Configuration
 const swaggerOptions = {
@@ -89,20 +99,20 @@ const swaggerOptions = {
     info: {
       title: 'Sunglasses API with Image Uploads',
       version: '1.0.0',
-      description: 'A REST API for managing products and images for a sunglasses e-commerce platform using Node.js, Express, MongoDB with Mongoose, and Swagger. Current date and time: Thursday, July 31, 2025, 04:32 AM +05',
+      description: 'A REST API for managing products and images for a sunglasses e-commerce platform using Node.js, Express, MongoDB with Mongoose, and Swagger. Current date and time: Friday, August 01, 2025, 12:33 PM +05',
     },
     servers: [
       {
         url: `http://localhost:${process.env.PORT || 10000}`,
       },
-       {
+      {
         url: 'https://backend-2y5w.onrender.com/',
         description: 'Production',
       },
       {
         url: 'https://backend-production-79eb.up.railway.app/',
-        description: "Production 2"
-      }
+        description: 'Production 2',
+      },
     ],
   },
   apis: ['index.js'],
@@ -204,8 +214,13 @@ const swaggerDocs = swaggerJsdoc(swaggerOptions);
  *                 $ref: '#/components/schemas/Product'
  */
 app.get('/api/products', async (req, res) => {
-  const products = await Product.find();
-  res.json(products);
+  try {
+    const products = await Product.find();
+    res.json(products);
+  } catch (err) {
+    console.error('Error in /api/products:', err.message);
+    res.status(500).json({ error: 'Failed to retrieve products' });
+  }
 });
 
 /**
@@ -255,30 +270,35 @@ app.get('/api/products', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Product'
  *       400:
- *         description: Invalid input or image count
+ *         description: Invalid input, image count, or file too large
  */
 app.post('/api/products', upload.array('images', 10), async (req, res) => {
-  const { name, variant, price, originalPrice, category, colors, rating, reviews, isNew, badge } = req.body;
-  const images = req.files.map(file => file.filename);
-  if (images.length < 2 || images.length > 10) {
-    return res.status(400).json({ error: 'Number of images must be between 2 and 10' });
+  try {
+    const { name, variant, price, originalPrice, category, colors, rating, reviews, isNew, badge } = req.body;
+    const images = req.files.map(file => file.filename);
+    if (images.length < 2 || images.length > 10) {
+      return res.status(400).json({ error: 'Number of images must be between 2 and 10' });
+    }
+    const productData = {
+      name,
+      variant,
+      price: parseInt(price),
+      originalPrice: originalPrice ? parseInt(originalPrice) : undefined,
+      category,
+      colors: JSON.parse(colors),
+      rating: parseFloat(rating) || 0,
+      reviews: parseInt(reviews) || 0,
+      isNew: !!isNew,
+      badge,
+      images,
+    };
+    const product = new Product(productData);
+    const savedProduct = await product.save();
+    res.status(201).json(savedProduct);
+  } catch (err) {
+    console.error('Error in /api/products:', err.message);
+    res.status(400).json({ error: err.message });
   }
-  const productData = {
-    name,
-    variant,
-    price: parseInt(price),
-    originalPrice: originalPrice ? parseInt(originalPrice) : undefined,
-    category,
-    colors: JSON.parse(colors),
-    rating: parseFloat(rating) || 0,
-    reviews: parseInt(reviews) || 0,
-    isNew: !!isNew,
-    badge,
-    images,
-  };
-  const product = new Product(productData);
-  const savedProduct = await product.save();
-  res.status(201).json(savedProduct);
 });
 
 /**
@@ -303,9 +323,14 @@ app.post('/api/products', upload.array('images', 10), async (req, res) => {
  *         description: Product not found
  */
 app.get('/api/products/:id', async (req, res) => {
-  const product = await Product.findById(req.params.id);
-  if (!product) return res.status(404).json({ error: 'Product not found' });
-  res.json(product);
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    res.json(product);
+  } catch (err) {
+    console.error('Error in /api/products/:id:', err.message);
+    res.status(500).json({ error: 'Failed to retrieve product' });
+  }
 });
 
 /**
@@ -336,9 +361,14 @@ app.get('/api/products/:id', async (req, res) => {
  *         description: Product not found
  */
 app.put('/api/products/:id', async (req, res) => {
-  const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  if (!product) return res.status(404).json({ error: 'Product not found' });
-  res.json(product);
+  try {
+    const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    res.json(product);
+  } catch (err) {
+    console.error('Error in /api/products/:id:', err.message);
+    res.status(500).json({ error: 'Failed to update product' });
+  }
 });
 
 /**
@@ -359,9 +389,14 @@ app.put('/api/products/:id', async (req, res) => {
  *         description: Product not found
  */
 app.delete('/api/products/:id', async (req, res) => {
-  const product = await Product.findByIdAndDelete(req.params.id);
-  if (!product) return res.status(404).json({ error: 'Product not found' });
-  res.status(204).send();
+  try {
+    const product = await Product.findByIdAndDelete(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    res.status(204).send();
+  } catch (err) {
+    console.error('Error in /api/products/:id:', err.message);
+    res.status(500).json({ error: 'Failed to delete product' });
+  }
 });
 
 /**
@@ -394,17 +429,22 @@ app.delete('/api/products/:id', async (req, res) => {
  *                 url:
  *                   type: string
  *       400:
- *         description: No file uploaded
+ *         description: No file uploaded or file too large
  */
 app.post('/api/uploads-blog', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+    res.json({
+      message: 'Image uploaded successfully',
+      filename: req.file.filename,
+      url: `/uploads/${req.file.filename}`,
+    });
+  } catch (err) {
+    console.error('Error in /api/uploads-blog:', err.message);
+    res.status(400).json({ error: err.message });
   }
-  res.json({
-    message: 'Image uploaded successfully',
-    filename: req.file.filename,
-    url: `/uploads/${req.file.filename}`,
-  });
 });
 
 /**
@@ -435,18 +475,23 @@ app.post('/api/uploads-blog', upload.single('image'), (req, res) => {
  *                 image:
  *                   $ref: '#/components/schemas/Image'
  *       400:
- *         description: No file uploaded or invalid file type
+ *         description: No file uploaded, invalid file type, or file too large
  */
 app.post('/api/images', upload.single('image'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+    const image = new Image({
+      filename: req.file.filename,
+      path: req.file.path,
+    });
+    await image.save();
+    res.json({ message: 'Image uploaded', image: { ...image.toObject(), url: `/uploads/${image.filename}` } });
+  } catch (err) {
+    console.error('Error in /api/images:', err.message);
+    res.status(400).json({ error: err.message });
   }
-  const image = new Image({
-    filename: req.file.filename,
-    path: req.file.path,
-  });
-  await image.save();
-  res.json({ message: 'Image uploaded', image: { ...image.toObject(), url: `/uploads/${image.filename}` } });
 });
 
 /**
@@ -465,8 +510,13 @@ app.post('/api/images', upload.single('image'), async (req, res) => {
  *                 $ref: '#/components/schemas/Image'
  */
 app.get('/api/images', async (req, res) => {
-  const images = await Image.find();
-  res.json(images.map(image => ({ ...image.toObject(), url: `/uploads/${image.filename}` })));
+  try {
+    const images = await Image.find();
+    res.json(images.map(image => ({ ...image.toObject(), url: `/uploads/${image.filename}` })));
+  } catch (err) {
+    console.error('Error in /api/images:', err.message);
+    res.status(500).json({ error: 'Failed to retrieve images' });
+  }
 });
 
 /**
@@ -498,18 +548,23 @@ app.get('/api/images', async (req, res) => {
  *         description: Failed to delete file
  */
 app.delete('/api/images/:id', async (req, res) => {
-  const image = await Image.findByIdAndDelete(req.params.id);
-  if (!image) return res.status(404).json({ message: 'Image not found' });
+  try {
+    const image = await Image.findByIdAndDelete(req.params.id);
+    if (!image) return res.status(404).json({ message: 'Image not found' });
 
-  const filePath = path.join(process.cwd(), image.path);
-  fs.unlink(filePath, (err) => {
-    if (err) {
-      console.error('Failed to delete file:', err.message);
-      return res.status(500).json({ message: 'Failed to delete file' });
-    }
-  });
+    const filePath = path.join(process.cwd(), image.path);
+    fs.unlink(filePath, (err) => {
+      if (err) {
+        console.error('Failed to delete file:', err.message);
+        return res.status(500).json({ message: 'Failed to delete file' });
+      }
+    });
 
-  res.json({ message: 'Image deleted', image });
+    res.json({ message: 'Image deleted', image });
+  } catch (err) {
+    console.error('Error in /api/images/:id:', err.message);
+    res.status(500).json({ error: 'Failed to delete image' });
+  }
 });
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
