@@ -99,6 +99,10 @@ const swaggerOptions = {
         url: 'https://backend-2y5w.onrender.com/',
         description: 'Production',
       },
+      {
+        url: 'https://backend-production-79eb.up.railway.app/',
+        description: "Production 2"
+      }
     ],
   },
   apis: ['index.js'],
